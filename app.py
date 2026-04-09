@@ -15,6 +15,322 @@ from recommendation import cnv, dme, drusen, normal
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "Trained_Eye_disease_model_v2.keras"
+OUTPUT_DIR = BASE_DIR / "output"
+
+st.set_page_config(
+    page_title="Human Eye Disease Detection System",
+    page_icon="👁️",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+APP_THEME = """
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+    :root {
+        --primary: #2E86C1;
+        --secondary: #48C9B0;
+        --background: #F4F6F7;
+        --card: #FFFFFF;
+        --text-primary: #1B2631;
+        --text-secondary: #566573;
+        --success: #27AE60;
+        --warning: #F39C12;
+        --error: #E74C3C;
+        --border: rgba(27, 38, 49, 0.08);
+        --shadow: 0 10px 28px rgba(27, 38, 49, 0.08);
+    }
+
+    html, body, [class*="css"] {
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+    }
+
+    .stApp {
+        background: linear-gradient(180deg, #ffffff 0%, #f4f8fb 45%, #eef5fb 100%);
+        color: var(--text-primary);
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+    }
+    .main .block-container {
+        max-width: 1280px;
+        padding-top: 1.2rem;
+        padding-bottom: 2rem;
+    }
+    .top-nav {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        flex-wrap: wrap;
+        background: linear-gradient(90deg, #1f5f8a 0%, var(--primary) 60%, #3a9fd6 100%);
+        border-radius: 14px;
+        padding: 0.65rem 0.8rem;
+        box-shadow: 0 8px 24px rgba(27, 38, 49, 0.15);
+        margin: 0.2rem 0 1rem 0;
+    }
+    .nav-chip {
+        border-radius: 999px;
+        padding: 0.35rem 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: #f8fbff;
+        background: rgba(255, 255, 255, 0.08);
+        font-size: 0.88rem;
+        font-weight: 600;
+    }
+    .nav-chip.active {
+        background: #ffffff;
+        color: #1f5f8a;
+        border-color: #ffffff;
+    }
+    .dashboard-hero {
+        background: linear-gradient(135deg, var(--primary) 0%, #4aa3d8 55%, #dff3fb 100%);
+        color: white;
+        padding: 2rem 2.25rem;
+        border-radius: 24px;
+        box-shadow: 0 14px 40px rgba(46, 134, 193, 0.18);
+        margin-bottom: 1.25rem;
+    }
+    .dashboard-hero h1, .dashboard-hero p {
+        margin: 0;
+    }
+    .dashboard-subtext {
+        opacity: 0.95;
+        font-size: 0.98rem;
+        margin-top: 0.6rem;
+        max-width: 980px;
+    }
+    .metric-card, .info-card, .result-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        padding: 1rem 1.1rem;
+        height: 100%;
+    }
+    .metric-card:hover, .info-card:hover, .result-card:hover {
+        transform: translateY(-2px);
+        transition: all 0.25s ease;
+        box-shadow: 0 14px 34px rgba(27, 38, 49, 0.10);
+    }
+    .metric-value {
+        font-size: 1.55rem;
+        font-weight: 700;
+        color: var(--primary);
+        margin-bottom: 0.1rem;
+    }
+    .metric-label {
+        color: var(--text-secondary);
+        font-size: 0.92rem;
+    }
+    .stButton > button {
+        border-radius: 12px;
+        padding: 0.55rem 1.2rem;
+        border: none;
+        background: var(--primary);
+        color: white;
+        font-weight: 600;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+        box-shadow: 0 8px 18px rgba(46, 134, 193, 0.22);
+        transition: all 0.25s ease;
+    }
+    .stButton > button:hover {
+        background: #2471A3;
+        color: white;
+        transform: translateY(-1px);
+    }
+    div[data-testid="stFileUploader"] {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 0.7rem;
+        box-shadow: var(--shadow);
+    }
+    div[data-testid="stFileUploader"] button {
+        background: var(--secondary) !important;
+        color: white !important;
+        border-radius: 12px !important;
+    }
+    div[data-testid="stFileUploader"] button:hover {
+        background: #2fb49d !important;
+    }
+    div[data-testid="stImage"] img {
+        border-radius: 14px;
+        border: 1px solid rgba(86, 101, 115, 0.18);
+        box-shadow: 0 10px 28px rgba(27, 38, 49, 0.08);
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background: #ffffff;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        color: var(--text-secondary);
+        padding: 0.45rem 0.9rem;
+    }
+    .stTabs [aria-selected="true"] {
+        color: var(--primary);
+        border-color: rgba(46, 134, 193, 0.35);
+        box-shadow: 0 6px 16px rgba(46, 134, 193, 0.14);
+    }
+    .stMarkdown, .stText, p, li {
+        color: var(--text-primary);
+    }
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #174d70 0%, #1f5f8a 100%);
+    }
+    section[data-testid="stSidebar"] * {
+        color: #f8fbff !important;
+    }
+    .stRadio [role="radiogroup"] label {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+        margin-bottom: 0.4rem;
+        padding: 0.4rem 0.6rem;
+    }
+    .section-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0 0 0.25rem 0;
+        letter-spacing: -0.02em;
+    }
+    .section-caption {
+        color: var(--text-secondary);
+        margin-bottom: 1rem;
+        font-size: 1rem;
+    }
+    .result-pill {
+        display: inline-block;
+        padding: 0.35rem 0.8rem;
+        border-radius: 999px;
+        background: rgba(72, 201, 176, 0.15);
+        color: #0f766e;
+        font-weight: 600;
+        margin-top: 0.4rem;
+    }
+    .stCaption, .stInfo, .stSuccess, .stWarning, .stError {
+        border-radius: 12px;
+    }
+    .stSpinner > div {
+        border-top-color: var(--primary) !important;
+        border-right-color: var(--secondary) !important;
+    }
+</style>
+"""
+
+DISEASE_LABELS = ['CNV', 'DME', 'DRUSEN', 'NORMAL']
+DISEASE_DESCRIPTIONS = {
+    'CNV': 'Choroidal neovascularization may indicate abnormal blood vessel growth and requires specialist review.',
+    'DME': 'Diabetic macular edema is associated with retinal swelling and fluid accumulation.',
+    'DRUSEN': 'Drusen are deposits associated with early age-related macular degeneration.',
+    'NORMAL': 'No major retinal abnormality detected by the current model output.',
+}
+
+if "uploaded_file_key" not in st.session_state:
+    st.session_state.uploaded_file_key = 0
+
+
+def reset_upload():
+    st.session_state.uploaded_file_key += 1
+    st.session_state.pop("last_result", None)
+
+
+def render_hero():
+    st.markdown(
+        """
+        <div class="dashboard-hero">
+            <h1>Human Eye Disease Detection System</h1>
+            <p class="dashboard-subtext">
+                A professional medical AI dashboard for reviewing eye images, predicting disease classes,
+                and visualizing the highlighted region with enhancement and localization overlays.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_top_nav(current_page):
+    pages = ["Home", "Predict", "About", "Model Info", "Instructions"]
+    chips = []
+    for page in pages:
+        css_class = "nav-chip active" if page == current_page else "nav-chip"
+        chips.append(f"<span class='{css_class}'>{page}</span>")
+    st.markdown(f"<div class='top-nav'>{''.join(chips)}</div>", unsafe_allow_html=True)
+
+
+def render_metric_cards():
+    col1, col2, col3 = st.columns(3)
+    metrics = [
+        ("4", "Disease classes"),
+        ("OpenCV", "Image enhancement & localization"),
+        ("Streamlit", "Interactive dashboard UI"),
+    ]
+    for column, (value, label) in zip([col1, col2, col3], metrics):
+        with column:
+            st.markdown(
+                f"""
+                <div class="metric-card">
+                    <div class="metric-value">{value}</div>
+                    <div class="metric-label">{label}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+def render_info_cards():
+    c1, c2, c3 = st.columns(3)
+    cards = [
+        ("Upload", "Drop or browse a JPG/PNG eye image from your local system."),
+        ("Predict", "Run the existing ML model to identify the disease class."),
+        ("Visualize", "See the original, enhanced, and highlighted output images."),
+    ]
+    for column, (title, text) in zip([c1, c2, c3], cards):
+        with column:
+            st.markdown(
+                f"""
+                <div class="info-card">
+                    <div class="section-title">{title}</div>
+                    <div class="section-caption">{text}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+
+def render_about_section():
+    st.markdown("## About")
+    st.write(
+        "This dashboard helps clinicians and students review OCT images using the existing trained model. "
+        "It adds a modern interface, image preview, confidence output, and visual overlays without changing the ML core."
+    )
+
+
+def render_model_info_section():
+    st.markdown("## Model Info")
+    st.markdown(
+        f"""
+        - Model file: `{MODEL_PATH.name}`
+        - Input image size: `224 x 224`
+        - Preprocessing: OpenCV-based enhancement + MobileNetV3 preprocessing
+        - Output classes: CNV, DME, DRUSEN, NORMAL
+        """
+    )
+
+
+def render_instructions_section():
+    st.markdown("## Instructions")
+    st.markdown(
+        """
+        1. Open the **Predict** page.
+        2. Upload a JPG or PNG eye image.
+        3. Preview the image before prediction.
+        4. Click **Predict Disease**.
+        5. Review the result, confidence score, and highlighted output.
+        """
+    )
 
 
 def _resolve_model_path_for_loading(model_path: Path) -> str:
@@ -100,15 +416,35 @@ def highlight_disease_area(original_bgr, enhanced_bgr):
 
 
 def show_results(original_bgr, enhanced_bgr, highlighted_bgr, disease_name, confidence):
-    output_dir = BASE_DIR / "output"
-    output_dir.mkdir(exist_ok=True)
-    output_path = output_dir / "predicted_result.jpg"
+    OUTPUT_DIR.mkdir(exist_ok=True)
+    output_path = OUTPUT_DIR / "predicted_result.jpg"
     cv2.imwrite(str(output_path), highlighted_bgr)
 
-    st.success(f"Predicted Disease: {disease_name}")
-    st.info(f"Confidence Score: {confidence * 100:.2f}%")
+    st.success("Prediction completed successfully.")
+    result_col, confidence_col = st.columns(2)
+    with result_col:
+        st.markdown(
+            f"""
+            <div class="result-card">
+                <div class="section-title">Predicted Disease</div>
+                <div class="result-pill">{disease_name}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with confidence_col:
+        st.markdown(
+            f"""
+            <div class="result-card">
+                <div class="section-title">Confidence Score</div>
+                <div class="metric-value">{confidence * 100:.2f}%</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+    fig.patch.set_facecolor("#f7fbff")
     axes[0].imshow(cv2.cvtColor(original_bgr, cv2.COLOR_BGR2RGB))
     axes[0].set_title("Original Image")
     axes[1].imshow(cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB))
@@ -123,114 +459,68 @@ def show_results(original_bgr, enhanced_bgr, highlighted_bgr, disease_name, conf
     st.caption(f"Output saved to: {output_path}")
     return output_path
 
-#Sidebar
+# Sidebar
+st.markdown(APP_THEME, unsafe_allow_html=True)
 st.sidebar.title("Dashboard")
-app_mode = st.sidebar.selectbox("Select Page",["Home","About","Disease Identification"])
+app_mode = st.sidebar.radio(
+    "Select Page",
+    ["Home", "Predict", "About", "Model Info", "Instructions"],
+    index=1,
+)
+
+st.sidebar.markdown("---")
+st.sidebar.caption("Medical AI dashboard for OCT image screening")
+
+render_top_nav(app_mode)
 
 #Main Page
-if(app_mode=="Home"):
-    # image_path = "home_page.jpeg"
-    # st.image(image_path,use_column_width=True)
-    st.markdown("""
-    ## **OCT Retinal Analysis Platform**
-
-#### **Welcome to the Retinal OCT Analysis Platform**
-
-**Optical Coherence Tomography (OCT)** is a powerful imaging technique that provides high-resolution cross-sectional images of the retina, allowing for early detection and monitoring of various retinal diseases. Each year, over 30 million OCT scans are performed, aiding in the diagnosis and management of eye conditions that can lead to vision loss, such as choroidal neovascularization (CNV), diabetic macular edema (DME), and age-related macular degeneration (AMD).
-
-##### **Why OCT Matters**
-OCT is a crucial tool in ophthalmology, offering non-invasive imaging to detect retinal abnormalities. On this platform, we aim to streamline the analysis and interpretation of these scans, reducing the time burden on medical professionals and increasing diagnostic accuracy through advanced automated analysis.
-
----
-
-#### **Key Features of the Platform**
-
-- **Automated Image Analysis**: Our platform uses state-of-the-art machine learning models to classify OCT images into distinct categories: **Normal**, **CNV**, **DME**, and **Drusen**.
-- **Cross-Sectional Retinal Imaging**: Examine high-quality images showcasing both normal retinas and various pathologies, helping doctors make informed clinical decisions.
-- **Streamlined Workflow**: Upload, analyze, and review OCT scans in a few easy steps.
-
----
-
-#### **Understanding Retinal Diseases through OCT**
-
-1. **Choroidal Neovascularization (CNV)**
-   - Neovascular membrane with subretinal fluid
-   
-2. **Diabetic Macular Edema (DME)**
-   - Retinal thickening with intraretinal fluid
-   
-3. **Drusen (Early AMD)**
-   - Presence of multiple drusen deposits
-
-4. **Normal Retina**
-   - Preserved foveal contour, absence of fluid or edema
-
----
-
-#### **About the Dataset**
-
-Our dataset consists of **84,495 high-resolution OCT images** (JPEG format) organized into **train, test, and validation** sets, split into four primary categories:
-- **Normal**
-- **CNV**
-- **DME**
-- **Drusen**
-
-Each image has undergone multiple layers of expert verification to ensure accuracy in disease classification. The images were obtained from various renowned medical centers worldwide and span across a diverse patient population, ensuring comprehensive coverage of different retinal conditions.
-
----
-
-#### **Get Started**
-
-- **Upload OCT Images**: Begin by uploading your OCT scans for analysis.
-- **Explore Results**: View categorized scans and detailed diagnostic insights.
-- **Learn More**: Dive deeper into the different retinal diseases and how OCT helps diagnose them.
-
----
-
-#### **Contact Us**
-
-Have questions or need assistance? [Contact our support team](mailto:arzankhan994@gmail.com) for more information on how to use the platform or integrate it into your clinical practice.
-
-    """)
+if app_mode == "Home":
+    render_hero()
+    render_metric_cards()
+    st.markdown("### Welcome")
+    st.write(
+        "Use the sidebar to move between the prediction workspace, project overview, model details, and instructions. "
+        "The dashboard is optimized for quick image review and clear clinical presentation."
+    )
+    render_info_cards()
 
 #About Project
-elif(app_mode=="About"):
-    st.header("About")
-    st.markdown("""
-                #### About Dataset
-                Retinal optical coherence tomography (OCT) is an imaging technique used to capture high-resolution cross sections of the retinas of living patients. 
-                Approximately 30 million OCT scans are performed each year, and the analysis and interpretation of these images takes up a significant amount of time.
-                (A) (Far left) choroidal neovascularization (CNV) with neovascular membrane (white arrowheads) and associated subretinal fluid (arrows). 
-                (Middle left) Diabetic macular edema (DME) with retinal-thickening-associated intraretinal fluid (arrows). 
-                (Middle right) Multiple drusen (arrowheads) present in early AMD. 
-                (Far right) Normal retina with preserved foveal contour and absence of any retinal fluid/edema.
+elif app_mode == "Predict":
+    st.markdown("<div class='section-title'>Prediction Workspace</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-caption'>Upload an eye image, preview it, and run the existing model to get the disease result.</div>", unsafe_allow_html=True)
 
-                ---
+    upload_col, preview_col = st.columns([1, 1.15])
+    with upload_col:
+        st.markdown("#### Upload Image")
+        test_image = st.file_uploader(
+            "Choose an eye image",
+            type=["jpg", "jpeg", "png"],
+            key=f"uploader_{st.session_state.uploaded_file_key}",
+            label_visibility="collapsed",
+        )
+        uploaded_bytes = test_image.getvalue() if test_image is not None else None
+        c1, c2 = st.columns(2)
+        with c1:
+            predict_clicked = st.button("Predict Disease", use_container_width=True)
+        with c2:
+            reset_clicked = st.button("Reset", use_container_width=True, on_click=reset_upload)
 
-                #### Content
-                The dataset is organized into 3 folders (train, test, val) and contains subfolders for each image category (NORMAL,CNV,DME,DRUSEN). 
-                There are 84,495 X-Ray images (JPEG) and 4 categories (NORMAL,CNV,DME,DRUSEN).
+        if test_image is None and predict_clicked:
+            st.error("Please upload an eye image before predicting.")
 
-                Images are labeled as (disease)-(randomized patient ID)-(image number by this patient) and split into 4 directories: CNV, DME, DRUSEN, and NORMAL.
+    with preview_col:
+        st.markdown("#### Image Preview")
+        if uploaded_bytes is not None:
+            st.image(uploaded_bytes, use_container_width=True)
+        else:
+            st.info("Your uploaded image preview will appear here before prediction.")
 
-                Optical coherence tomography (OCT) images (Spectralis OCT, Heidelberg Engineering, Germany) were selected from retrospective cohorts of adult patients from the Shiley Eye Institute of the University of California San Diego, the California Retinal Research Foundation, Medical Center Ophthalmology Associates, the Shanghai First People’s Hospital, and Beijing Tongren Eye Center between July 1, 2013 and March 1, 2017.
-
-                Before training, each image went through a tiered grading system consisting of multiple layers of trained graders of increasing exper- tise for verification and correction of image labels. Each image imported into the database started with a label matching the most recent diagnosis of the patient. The first tier of graders consisted of undergraduate and medical students who had taken and passed an OCT interpretation course review. This first tier of graders conducted initial quality control and excluded OCT images containing severe artifacts or significant image resolution reductions. The second tier of graders consisted of four ophthalmologists who independently graded each image that had passed the first tier. The presence or absence of choroidal neovascularization (active or in the form of subretinal fibrosis), macular edema, drusen, and other pathologies visible on the OCT scan were recorded. Finally, a third tier of two senior independent retinal specialists, each with over 20 years of clinical retina experience, verified the true labels for each image. The dataset selection and stratification process is displayed in a CONSORT-style diagram in Figure 2B. To account for human error in grading, a validation subset of 993 scans was graded separately by two ophthalmologist graders, with disagreement in clinical labels arbitrated by a senior retinal specialist.
-
-                """)
-
-#Prediction Page
-elif(app_mode=="Disease Identification"):
-    st.header("Welcome to the Retinal OCT Analysis Platform")
-    test_image = st.file_uploader("Upload your Image:", type=["jpg", "jpeg", "png"])
-    if test_image is not None:
-        # Save to a temporary file and get its path
-        with tempfile.NamedTemporaryFile(delete=False, suffix=test_image.name) as tmp_file:
-            tmp_file.write(test_image.read())
+    if test_image is not None and predict_clicked:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(test_image.name).suffix) as tmp_file:
+            tmp_file.write(uploaded_bytes)
             temp_file_path = tmp_file.name
-    #Predict button
-    if(st.button("Predict")) and test_image is not None:
-        with st.spinner("Please Wait.."):
+
+        with st.spinner("Analyzing image and generating results..."):
             model = load_model()
             original_bgr = cv2.imread(temp_file_path)
             if original_bgr is None:
@@ -241,47 +531,94 @@ elif(app_mode=="Disease Identification"):
             result_index, confidence, _ = predict_disease(model, preprocessed_batch)
             highlighted_bgr, edge_image, threshold_image = highlight_disease_area(original_bgr, enhanced_bgr)
 
-            class_name = ['CNV', 'DME', 'DRUSEN', 'NORMAL']
-            predicted_name = class_name[result_index]
+            predicted_name = DISEASE_LABELS[result_index]
             show_results(original_bgr, enhanced_bgr, highlighted_bgr, predicted_name, confidence)
+
+            st.session_state.last_result = predicted_name
+
+        st.success("Prediction completed successfully.")
+
+        st.markdown("#### Visualization")
+        viz_col1, viz_col2, viz_col3 = st.columns(3)
+        with viz_col1:
+            st.image(cv2.cvtColor(original_bgr, cv2.COLOR_BGR2RGB), caption="Original Image", use_container_width=True)
+        with viz_col2:
+            st.image(cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB), caption="Enhanced Image", use_container_width=True)
+        with viz_col3:
+            st.image(cv2.cvtColor(highlighted_bgr, cv2.COLOR_BGR2RGB), caption="Disease Highlighted Image", use_container_width=True)
+
+        st.markdown("#### Result Panel")
+        result_col1, result_col2 = st.columns([1, 1])
+        with result_col1:
+            st.markdown(
+                f"""
+                <div class="result-card">
+                    <div class="section-title">Predicted Disease Name</div>
+                    <div class="result-pill">{predicted_name}</div>
+                    <p style="margin-top: 0.75rem; color: #475569;">{DISEASE_DESCRIPTIONS[predicted_name]}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with result_col2:
+            st.markdown(
+                f"""
+                <div class="result-card">
+                    <div class="section-title">Confidence</div>
+                    <div class="metric-value">{confidence * 100:.2f}%</div>
+                    <p style="margin-top: 0.75rem; color: #475569;">Higher values indicate greater model confidence.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
         with st.expander("Localization Debug View"):
             col1, col2 = st.columns(2)
             with col1:
-                st.image(edge_image, caption="Edge Detection", clamp=True)
+                st.image(edge_image, caption="Edge Detection", clamp=True, use_container_width=True)
             with col2:
-                st.image(threshold_image, caption="Threshold + Contours Basis", clamp=True)
+                st.image(threshold_image, caption="Threshold + Contours Basis", clamp=True, use_container_width=True)
 
-        #Recommendation
+        with st.expander("Model Output"):
+            st.write(f"Predicted Disease: **{predicted_name}**")
+            st.write(f"Confidence Score: **{confidence * 100:.2f}%**")
+            st.write(f"Output saved to: **{OUTPUT_DIR / 'predicted_result.jpg'}**")
+
+        # Recommendation
         with st.expander("Learn More"):
-            #CNV
-            if(result_index==0):
+            if result_index == 0:
                 st.write('''
                     OCT scan showing *CNV with subretinal fluid.*
                 ''')
-                st.image(test_image)
+                st.image(uploaded_bytes)
                 st.markdown(cnv)
-        
-            #DME
-            elif(result_index==1):
+            elif result_index == 1:
                 st.write('''
                     OCT scan showing *DME with retinal thickening and intraretinal fluid.*
                 ''')
-                st.image(test_image)
+                st.image(uploaded_bytes)
                 st.markdown(dme)
-
-            #DRUSEN
-            elif(result_index==2):
+            elif result_index == 2:
                 st.write('''
                     OCT scan showing *drusen deposits in early AMD.*
                 ''')
-                st.image(test_image)
+                st.image(uploaded_bytes)
                 st.markdown(drusen)
-                
-            #NORMAL
-            elif(result_index==3):
+            elif result_index == 3:
                 st.write('''
                     OCT scan showing a *normal retina with preserved foveal contour.*
                 ''')
-                st.image(test_image)
+                st.image(uploaded_bytes)
                 st.markdown(normal)
+
+elif app_mode == "About":
+    render_hero()
+    render_about_section()
+
+elif app_mode == "Model Info":
+    render_hero()
+    render_model_info_section()
+
+elif app_mode == "Instructions":
+    render_hero()
+    render_instructions_section()
