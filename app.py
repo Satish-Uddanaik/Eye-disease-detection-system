@@ -1,23 +1,127 @@
 import tempfile
+import os
+from pathlib import Path
 import streamlit as st
+import cv2
+import matplotlib.pyplot as plt
+
+# Use legacy Keras deserialization for older HDF5 models.
+os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
+
 import tensorflow as tf
 from tensorflow.keras.applications.mobilenet_v3 import preprocess_input
 import numpy as np
 from recommendation import cnv, dme, drusen, normal
 
+BASE_DIR = Path(__file__).resolve().parent
+MODEL_PATH = BASE_DIR / "Trained_Eye_disease_model_v2.keras"
+
+
+def _resolve_model_path_for_loading(model_path: Path) -> str:
+    """Return a loadable model path for Keras, handling mislabeled HDF5 files."""
+    with model_path.open("rb") as f:
+        header = f.read(4)
+
+    # Legacy Keras HDF5 models start with this signature.
+    if header == b"\x89HDF":
+        tmp_h5 = tempfile.NamedTemporaryFile(delete=False, suffix=".h5")
+        tmp_h5.close()
+        Path(tmp_h5.name).write_bytes(model_path.read_bytes())
+        return tmp_h5.name
+
+    return str(model_path)
+
 @st.cache_resource()
 def load_model():
-    model = tf.keras.models.load_model("Trained_Eye_disease_model_v2.keras",compile=False)
+    if not MODEL_PATH.exists():
+        raise FileNotFoundError(f"Model file not found at: {MODEL_PATH}")
+    loadable_path = _resolve_model_path_for_loading(MODEL_PATH)
+    model = tf.keras.models.load_model(loadable_path, compile=False)
     return model
 
-def model_prediction(test_image_path):
-    model = load_model()
-    img = tf.keras.utils.load_img(test_image_path, target_size=(224, 224))
-    x = tf.keras.utils.img_to_array(img)
-    x = np.expand_dims(x, axis=0)
+def enhance_image(image_bgr):
+    # Contrast enhancement using CLAHE in LAB color space.
+    lab = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2LAB)
+    l_channel, a_channel, b_channel = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    cl = clahe.apply(l_channel)
+    enhanced_lab = cv2.merge((cl, a_channel, b_channel))
+    enhanced = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
+
+    # Noise removal and sharpening.
+    denoised = cv2.GaussianBlur(enhanced, (3, 3), 0)
+    sharpen_kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]], dtype=np.float32)
+    sharpened = cv2.filter2D(denoised, -1, sharpen_kernel)
+    return sharpened
+
+
+def preprocess_image(image_bgr, target_size=(224, 224)):
+    enhanced_bgr = enhance_image(image_bgr)
+    resized = cv2.resize(enhanced_bgr, target_size)
+    rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
+    x = np.expand_dims(rgb.astype(np.float32), axis=0)
     x = preprocess_input(x)
-    prediction = model.predict(x)
-    return np.argmax(prediction)
+    return x, enhanced_bgr
+
+
+def predict_disease(model, preprocessed_batch):
+    predictions = model.predict(preprocessed_batch, verbose=0)[0]
+    class_index = int(np.argmax(predictions))
+    confidence = float(predictions[class_index])
+    return class_index, confidence, predictions
+
+
+def highlight_disease_area(original_bgr, enhanced_bgr):
+    gray = cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    edges = cv2.Canny(blurred, 50, 150)
+    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    highlighted = original_bgr.copy()
+    region_mask = np.zeros_like(gray)
+    min_area = max(100, (gray.shape[0] * gray.shape[1]) // 500)
+
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area < min_area:
+            continue
+        x, y, w, h = cv2.boundingRect(contour)
+        cv2.rectangle(highlighted, (x, y), (x + w, y + h), (0, 255, 255), 2)
+        cv2.drawContours(region_mask, [contour], -1, 255, thickness=cv2.FILLED)
+
+    normalized = cv2.normalize(blurred, None, 0, 255, cv2.NORM_MINMAX)
+    heatmap = cv2.applyColorMap(normalized.astype(np.uint8), cv2.COLORMAP_JET)
+    heatmap_overlay = cv2.addWeighted(highlighted, 0.65, heatmap, 0.35, 0)
+    heatmap_overlay[region_mask == 0] = highlighted[region_mask == 0]
+
+    return heatmap_overlay, edges, thresh
+
+
+def show_results(original_bgr, enhanced_bgr, highlighted_bgr, disease_name, confidence):
+    output_dir = BASE_DIR / "output"
+    output_dir.mkdir(exist_ok=True)
+    output_path = output_dir / "predicted_result.jpg"
+    cv2.imwrite(str(output_path), highlighted_bgr)
+
+    st.success(f"Predicted Disease: {disease_name}")
+    st.info(f"Confidence Score: {confidence * 100:.2f}%")
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    axes[0].imshow(cv2.cvtColor(original_bgr, cv2.COLOR_BGR2RGB))
+    axes[0].set_title("Original Image")
+    axes[1].imshow(cv2.cvtColor(enhanced_bgr, cv2.COLOR_BGR2RGB))
+    axes[1].set_title("Enhanced Image")
+    axes[2].imshow(cv2.cvtColor(highlighted_bgr, cv2.COLOR_BGR2RGB))
+    axes[2].set_title("Disease Highlighted")
+    for ax in axes:
+        ax.axis("off")
+    st.pyplot(fig)
+    plt.close(fig)
+
+    st.caption(f"Output saved to: {output_path}")
+    return output_path
 
 #Sidebar
 st.sidebar.title("Dashboard")
@@ -118,7 +222,7 @@ elif(app_mode=="About"):
 #Prediction Page
 elif(app_mode=="Disease Identification"):
     st.header("Welcome to the Retinal OCT Analysis Platform")
-    test_image = st.file_uploader("Upload your Image:")
+    test_image = st.file_uploader("Upload your Image:", type=["jpg", "jpeg", "png"])
     if test_image is not None:
         # Save to a temporary file and get its path
         with tempfile.NamedTemporaryFile(delete=False, suffix=test_image.name) as tmp_file:
@@ -127,10 +231,26 @@ elif(app_mode=="Disease Identification"):
     #Predict button
     if(st.button("Predict")) and test_image is not None:
         with st.spinner("Please Wait.."):
-            result_index = model_prediction(temp_file_path)
-            #Reading Labels
+            model = load_model()
+            original_bgr = cv2.imread(temp_file_path)
+            if original_bgr is None:
+                st.error("Could not read the uploaded image using OpenCV.")
+                st.stop()
+
+            preprocessed_batch, enhanced_bgr = preprocess_image(original_bgr)
+            result_index, confidence, _ = predict_disease(model, preprocessed_batch)
+            highlighted_bgr, edge_image, threshold_image = highlight_disease_area(original_bgr, enhanced_bgr)
+
             class_name = ['CNV', 'DME', 'DRUSEN', 'NORMAL']
-        st.success("Model is Predicting it's a {}".format(class_name[result_index]))
+            predicted_name = class_name[result_index]
+            show_results(original_bgr, enhanced_bgr, highlighted_bgr, predicted_name, confidence)
+
+        with st.expander("Localization Debug View"):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.image(edge_image, caption="Edge Detection", clamp=True)
+            with col2:
+                st.image(threshold_image, caption="Threshold + Contours Basis", clamp=True)
 
         #Recommendation
         with st.expander("Learn More"):
