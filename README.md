@@ -200,16 +200,6 @@ http://localhost:8501
 
 ---
 
-## 👨‍💻 Authors
-
-- Harsha M B
-- Vedant S Varma
-- Satish Halasiddappa Uddanaik
-
-Department of Computer Science and Engineering  
-University Visvesvaraya College of Engineering (UVCE)
-
----
 
 ## 📜 License
 
